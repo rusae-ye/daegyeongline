@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>대경선 시간표 · 구미↔왜관↔대구</title>
+<style>
+  :root{
+    --bg: #0a1420;
+    --panel: #0f1e2c;
+    --panel-2: #142735;
+    --line: rgba(255,255,255,0.07);
+    --line-strong: rgba(255,255,255,0.14);
+    --text: #eaf1f5;
+    --text-dim: #7f97a6;
+    --text-faint: #4d6272;
+    --amber: #ffb302;
+    --amber-dim: rgba(255,179,2,0.14);
+    --cyan: #35d0c4;
+    --cyan-dim: rgba(53,208,196,0.14);
+    --radius: 14px;
+    font-size: 16px;
+  }
+
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body{
+    margin:0; padding:0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", sans-serif;
+    min-height: 100vh;
+  }
+
+  .mono{
+    font-family: ui-monospace, "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+
+  /* ---- background texture: faint rail-tie lines ---- */
+  body{
+    background-image:
+      repeating-linear-gradient(180deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 34px);
+  }
+
+  .wrap{
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 0 0 48px;
+    min-height: 100vh;
+    position: relative;
+  }
+
+  /* ---------------- HEADER ---------------- */
+  header{
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: linear-gradient(180deg, var(--bg) 70%, rgba(10,20,32,0.92));
+    backdrop-filter: blur(6px);
+    padding: 18px 18px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .title-row{
+    display:flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  h1{
+    margin:0;
+    font-size: 21px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+  }
+  h1 span{
+    display:block;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-dim);
+    letter-spacing: 0.02em;
+    margin-top: 3px;
+  }
+  .clock{
+    text-align:right;
+    line-height:1;
+    flex-shrink:0;
+  }
+  .clock .t{
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--amber);
+  }
+  .clock .d{
+    font-size: 10.5px;
+    color: var(--text-faint);
+    margin-top: 4px;
+    font-family: -apple-system, sans-serif;
+    letter-spacing: 0.03em;
+  }
+
+  /* ---------------- SEGMENTED CONTROLS ---------------- */
+  .segment{
+    display:flex;
+    gap: 6px;
+    margin-top: 14px;
+    background: var(--panel);
+    padding: 4px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+  }
+  .segment button{
+    flex:1;
+    border:none;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 13px;
+    font-weight: 700;
+    padding: 9px 6px;
+    border-radius: 9px;
+    cursor:pointer;
+    font-family: inherit;
+    transition: background .15s, color .15s;
+  }
+  .segment button.active{
+    background: var(--panel-2);
+    color: var(--text);
+  }
+  .segment.daytype button.active{ color: var(--amber); box-shadow: inset 0 0 0 1px rgba(255,179,2,0.35);}
+
+  .dirtabs{
+    margin-top: 8px;
+    display:flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .dirtabs button{
+    display:flex;
+    align-items:center;
+    gap: 10px;
+    width:100%;
+    text-align:left;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--text-dim);
+    padding: 11px 13px;
+    border-radius: 12px;
+    font-family: inherit;
+    cursor:pointer;
+    font-size: 13.5px;
+    font-weight: 700;
+    transition: border-color .15s, background .15s, color .15s;
+  }
+  .dirtabs button .dot{
+    width: 8px; height:8px; border-radius:50%;
+    background: var(--text-faint);
+    flex-shrink:0;
+  }
+  .dirtabs button .route{ flex:1; color: var(--text); }
+  .dirtabs button .arrow{ color: var(--text-faint); font-size: 12px;}
+  .dirtabs button.active[data-dir="1"]{
+    border-color: rgba(255,179,2,0.5);
+    background: var(--amber-dim);
+  }
+  .dirtabs button.active[data-dir="1"] .dot{ background: var(--amber); box-shadow: 0 0 8px rgba(255,179,2,0.6);}
+  .dirtabs button.active[data-dir="2"]{
+    border-color: rgba(53,208,196,0.5);
+    background: var(--cyan-dim);
+  }
+  .dirtabs button.active[data-dir="2"] .dot{ background: var(--cyan); box-shadow: 0 0 8px rgba(53,208,196,0.6);}
+
+  /* ---------------- NEXT TRAIN BANNER ---------------- */
+  .next-banner{
+    margin: 14px 18px 0;
+    border-radius: var(--radius);
+    padding: 13px 15px;
+    display:flex;
+    align-items:center;
+    gap: 12px;
+    border: 1px solid var(--line-strong);
+    background: var(--panel);
+  }
+  .next-banner .lbl{
+    font-size: 10.5px;
+    color: var(--text-dim);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  .next-banner .big{
+    font-size: 15px;
+    font-weight: 800;
+    margin-top: 2px;
+  }
+  .next-banner .eta{
+    margin-left:auto;
+    text-align:right;
+  }
+  .next-banner .eta .n{
+    font-size: 22px;
+    font-weight: 800;
+  }
+  .next-banner .eta .u{
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+  .next-banner.dir1{ border-color: rgba(255,179,2,0.35); }
+  .next-banner.dir1 .big, .next-banner.dir1 .eta .n{ color: var(--amber); }
+  .next-banner.dir2{ border-color: rgba(53,208,196,0.35); }
+  .next-banner.dir2 .big, .next-banner.dir2 .eta .n{ color: var(--cyan); }
+  .next-banner.none{ color: var(--text-faint); }
+
+  /* ---------------- LEGEND / COLUMN HEAD ---------------- */
+  .grid{
+    display:grid;
+    grid-template-columns: 44px repeat(5, 1fr);
+    align-items:center;
+  }
+  .colhead{
+    padding: 16px 10px 7px;
+    font-size: 9.5px;
+    color: var(--text-faint);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+  .colhead > div{ text-align:center; line-height:1.3; }
+  .colhead > div:first-child{ text-align:left; padding-left: 4px; }
+  .colhead .sub{
+    display:block;
+    font-size: 8.5px;
+    color: var(--text-faint);
+    font-weight: 600;
+    margin-top: 1px;
+  }
+
+  /* ---------------- TABLE / ROWS ---------------- */
+  .list{
+    margin: 0 12px;
+    background: var(--panel);
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  .row{
+    padding: 10px 10px 9px;
+    border-bottom: 1px solid var(--line);
+    position: relative;
+  }
+  .row:last-child{ border-bottom:none; }
+  .row .no{
+    font-size: 10px;
+    color: var(--text-faint);
+    padding-left: 4px;
+  }
+  .row .cell{
+    text-align:center;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap: 2px;
+  }
+  .row .cell .t{
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .row .cell .stn{
+    font-size: 8.5px;
+    font-weight: 600;
+    color: var(--text-faint);
+    letter-spacing: 0.01em;
+  }
+  .row .cell.dash .t{
+    color: var(--text-faint);
+    font-weight: 500;
+    font-size: 12px;
+  }
+
+  .row.next{
+    background: linear-gradient(90deg, var(--amber-dim), transparent 85%);
+  }
+  .row.next.dir2{
+    background: linear-gradient(90deg, var(--cyan-dim), transparent 85%);
+  }
+  .row.next .cell .t{ color: var(--amber); }
+  .row.next.dir2 .cell .t{ color: var(--cyan); }
+  .row.next .cell.dash .t{ color: var(--text-faint); }
+  .row.next::before{
+    content:"";
+    position:absolute;
+    left:0; top:0; bottom:0;
+    width: 3px;
+    background: var(--amber);
+  }
+  .row.next.dir2::before{ background: var(--cyan); }
+  .row.past{ opacity: 0.38; }
+
+  .badge{
+    display:inline-block;
+    font-size: 9.5px;
+    font-weight: 800;
+    color: var(--bg);
+    background: var(--amber);
+    padding: 1px 5px;
+    border-radius: 5px;
+    margin-left: 6px;
+    vertical-align: middle;
+    letter-spacing: 0;
+  }
+  .row.dir2 .badge{ background: var(--cyan); }
+
+  footer{
+    padding: 22px 20px 10px;
+    font-size: 11px;
+    color: var(--text-faint);
+    line-height: 1.6;
+  }
+  footer b{ color: var(--text-dim); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="title-row">
+      <h1>대경선 시간표<span>구미 · 왜관 · 대구 · 동대구 · 경산</span></h1>
+      <div class="clock">
+        <div class="t mono" id="clockTime">--:--</div>
+        <div class="d" id="clockDate">-</div>
+      </div>
+    </div>
+
+    <div class="segment daytype" id="daytypeSeg">
+      <button data-v="weekday">평일</button>
+      <button data-v="holiday">주말·공휴일</button>
+    </div>
+
+    <div class="dirtabs" id="dirtabs">
+      <button data-dir="1">
+        <span class="dot"></span>
+        <span class="route">동대구 · 경산 → 구미</span>
+        <span class="arrow">▸</span>
+      </button>
+      <button data-dir="2">
+        <span class="dot"></span>
+        <span class="route">구미 → 동대구 · 경산</span>
+        <span class="arrow">▸</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="next-banner none" id="nextBanner">
+    <div>
+      <div class="lbl">다음 열차</div>
+      <div class="big" id="nextInfo">불러오는 중…</div>
+    </div>
+    <div class="eta">
+      <div class="n mono" id="nextEta">–</div>
+      <div class="u">분 후</div>
+    </div>
+  </div>
+
+  <div class="colhead grid" id="colhead"></div>
+
+  <div class="list" id="list"></div>
+
+  <footer>
+    <b>구미시청 제공 자료(2024.12.14~)</b> 기준으로 정리했어요. 실제 운행은 관제 상황에 따라 달라질 수 있으니, 급할 땐 역 안내를 함께 확인하세요.<br>
+    이 페이지는 인터넷 연결 없이도 휴대폰에 저장해두고 볼 수 있어요.
+  </footer>
+</div>
+
+<script>
+const DATA = {"dir1":{"weekday":[{"no":"K1702","from":"동대구","gs":null,"dd":"05:25","dg":"05:30","wg":"05:52","gm":"06:12"},{"no":"K1704","from":"경산","gs":"05:30","dd":"05:42","dg":"05:47","wg":"06:09","gm":"06:29"},{"no":"K1706","from":"동대구","gs":null,"dd":"05:55","dg":"06:00","wg":"06:22","gm":"06:42"},{"no":"K1708","from":"경산","gs":"05:57","dd":"06:09","dg":"06:14","wg":"06:36","gm":"06:56"},{"no":"K1710","from":"경산","gs":"06:07","dd":"06:19","dg":"06:24","wg":"06:46","gm":"07:06"},{"no":"K1712","from":"경산","gs":"06:35","dd":"06:47","dg":"06:52","wg":"07:14","gm":"07:34"},{"no":"K1714","from":"경산","gs":"06:45","dd":"06:57","dg":"07:02","wg":"07:24","gm":"07:44"},{"no":"K1716","from":"경산","gs":"07:09","dd":"07:21","dg":"07:26","wg":"07:48","gm":"08:08"},{"no":"K1718","from":"경산","gs":"07:35","dd":"07:47","dg":"07:52","wg":"08:14","gm":"08:34"},{"no":"K1720","from":"경산","gs":"07:57","dd":"08:09","dg":"08:14","wg":"08:36","gm":"08:56"},{"no":"K1722","from":"경산","gs":"08:07","dd":"08:19","dg":"08:24","wg":"08:46","gm":"09:06"},{"no":"K1724","from":"경산","gs":"08:27","dd":"08:39","dg":"08:44","wg":"09:06","gm":"09:26"},{"no":"K1726","from":"경산","gs":"08:42","dd":"08:54","dg":"08:59","wg":"09:21","gm":"09:41"},{"no":"K1728","from":"경산","gs":"08:58","dd":"09:10","dg":"09:15","wg":"09:37","gm":"09:57"},{"no":"K1730","from":"경산","gs":"09:38","dd":"09:50","dg":"09:55","wg":"10:17","gm":"10:37"},{"no":"K1732","from":"경산","gs":"09:49","dd":"10:01","dg":"10:06","wg":"10:28","gm":"10:54"},{"no":"K1734","from":"경산","gs":"10:29","dd":"10:41","dg":"10:46","wg":"11:08","gm":"11:28"},{"no":"K1736","from":"경산","gs":"10:50","dd":"11:02","dg":"11:07","wg":"11:29","gm":"11:49"},{"no":"K1738","from":"경산","gs":"11:20","dd":"11:32","dg":"11:37","wg":"11:59","gm":"12:19"},{"no":"K1740","from":"경산","gs":"11:42","dd":"11:54","dg":"11:59","wg":"12:22","gm":"12:41"},{"no":"K1742","from":"경산","gs":"12:23","dd":"12:35","dg":"12:40","wg":"13:02","gm":"13:22"},{"no":"K1744","from":"경산","gs":"12:50","dd":"13:02","dg":"13:07","wg":"13:29","gm":"13:49"},{"no":"K1746","from":"경산","gs":"13:28","dd":"13:40","dg":"13:45","wg":"14:07","gm":"14:27"},{"no":"K1748","from":"경산","gs":"14:08","dd":"14:20","dg":"14:25","wg":"14:47","gm":"15:07"},{"no":"K1750","from":"경산","gs":"14:35","dd":"14:47","dg":"14:52","wg":"15:14","gm":"15:34"},{"no":"K1752","from":"경산","gs":"14:57","dd":"15:09","dg":"15:14","wg":"15:36","gm":"16:01"},{"no":"K1754","from":"경산","gs":"15:10","dd":"15:22","dg":"15:27","wg":"15:49","gm":"16:09"},{"no":"K1756","from":"경산","gs":"15:42","dd":"15:54","dg":"15:59","wg":"16:21","gm":"16:46"},{"no":"K1758","from":"경산","gs":"16:12","dd":"16:24","dg":"16:29","wg":"16:51","gm":"17:11"},{"no":"K1760","from":"경산","gs":"16:33","dd":"16:45","dg":"16:50","wg":"17:12","gm":"17:37"},{"no":"K1762","from":"경산","gs":"16:58","dd":"17:10","dg":"17:15","wg":"17:37","gm":"17:57"},{"no":"K1764","from":"경산","gs":"17:06","dd":"17:18","dg":"17:23","wg":"17:45","gm":"18:10"},{"no":"K1766","from":"경산","gs":"17:36","dd":"17:48","dg":"17:53","wg":"18:15","gm":"18:35"},{"no":"K1768","from":"경산","gs":"17:57","dd":"18:09","dg":"18:14","wg":"18:36","gm":"19:01"},{"no":"K1770","from":"경산","gs":"18:23","dd":"18:35","dg":"18:40","wg":"19:02","gm":"19:27"},{"no":"K1772","from":"경산","gs":"18:47","dd":"18:59","dg":"19:04","wg":"19:26","gm":"19:46"},{"no":"K1774","from":"경산","gs":"19:13","dd":"19:25","dg":"19:30","wg":"19:52","gm":"20:12"},{"no":"K1776","from":"경산","gs":"19:45","dd":"19:57","dg":"20:02","wg":"20:24","gm":"20:44"},{"no":"K1778","from":"경산","gs":"20:06","dd":"20:18","dg":"20:23","wg":"20:45","gm":"21:05"},{"no":"K1780","from":"경산","gs":"20:31","dd":"20:43","dg":"20:48","wg":"21:10","gm":"21:30"},{"no":"K1782","from":"경산","gs":"20:51","dd":"21:03","dg":"21:08","wg":"21:30","gm":"21:50"},{"no":"K1784","from":"경산","gs":"21:14","dd":"21:26","dg":"21:31","wg":"21:53","gm":"22:13"},{"no":"K1786","from":"경산","gs":"21:44","dd":"21:56","dg":"22:01","wg":"22:23","gm":"22:43"},{"no":"K1788","from":"경산","gs":"22:10","dd":"22:22","dg":"22:27","wg":"22:49","gm":"23:09"},{"no":"K1790","from":"경산","gs":"22:37","dd":"22:49","dg":"22:54","wg":"23:16","gm":"23:36"},{"no":"K1792","from":"경산","gs":"22:55","dd":"23:07","dg":"23:12","wg":"23:34","gm":"23:54"},{"no":"K1794","from":"경산","gs":"23:19","dd":"23:31","dg":"23:36","wg":"23:58","gm":"00:18"},{"no":"K1796","from":"경산","gs":"23:38","dd":"23:50","dg":"23:55","wg":"00:17","gm":"00:37"}],"holiday":[{"no":"K1702","from":"동대구","gs":null,"dd":"05:25","dg":"05:30","wg":"05:52","gm":"06:12"},{"no":"K1704","from":"경산","gs":"05:30","dd":"05:42","dg":"05:47","wg":"06:09","gm":"06:29"},{"no":"K1708","from":"경산","gs":"05:57","dd":"06:09","dg":"06:14","wg":"06:36","gm":"06:56"},{"no":"K1710","from":"경산","gs":"06:07","dd":"06:19","dg":"06:24","wg":"06:46","gm":"07:06"},{"no":"K1712","from":"경산","gs":"06:35","dd":"06:47","dg":"06:52","wg":"07:14","gm":"07:34"},{"no":"K1714","from":"경산","gs":"06:45","dd":"06:57","dg":"07:02","wg":"07:24","gm":"07:44"},{"no":"K1716","from":"경산","gs":"07:09","dd":"07:21","dg":"07:26","wg":"07:48","gm":"08:08"},{"no":"K1718","from":"경산","gs":"07:35","dd":"07:47","dg":"07:52","wg":"08:14","gm":"08:34"},{"no":"K1720","from":"경산","gs":"07:57","dd":"08:09","dg":"08:14","wg":"08:36","gm":"08:56"},{"no":"K1724","from":"경산","gs":"08:27","dd":"08:39","dg":"08:44","wg":"09:06","gm":"09:26"},{"no":"K1726","from":"경산","gs":"08:42","dd":"08:54","dg":"08:59","wg":"09:21","gm":"09:41"},{"no":"K1728","from":"경산","gs":"08:58","dd":"09:10","dg":"09:15","wg":"09:37","gm":"09:57"},{"no":"K1730","from":"경산","gs":"09:38","dd":"09:50","dg":"09:55","wg":"10:17","gm":"10:37"},{"no":"K1732","from":"경산","gs":"09:49","dd":"10:01","dg":"10:06","wg":"10:28","gm":"10:54"},{"no":"K1734","from":"경산","gs":"10:29","dd":"10:41","dg":"10:46","wg":"11:08","gm":"11:28"},{"no":"K1736","from":"경산","gs":"10:50","dd":"11:02","dg":"11:07","wg":"11:29","gm":"11:49"},{"no":"K1738","from":"경산","gs":"11:20","dd":"11:32","dg":"11:37","wg":"11:59","gm":"12:19"},{"no":"K1740","from":"경산","gs":"11:42","dd":"11:54","dg":"11:59","wg":"12:22","gm":"12:41"},{"no":"K1742","from":"경산","gs":"12:23","dd":"12:35","dg":"12:40","wg":"13:02","gm":"13:22"},{"no":"K1744","from":"경산","gs":"12:50","dd":"13:02","dg":"13:07","wg":"13:29","gm":"13:49"},{"no":"K1746","from":"경산","gs":"13:28","dd":"13:40","dg":"13:45","wg":"14:07","gm":"14:27"},{"no":"K1748","from":"경산","gs":"14:08","dd":"14:20","dg":"14:25","wg":"14:47","gm":"15:07"},{"no":"K1750","from":"경산","gs":"14:35","dd":"14:47","dg":"14:52","wg":"15:14","gm":"15:34"},{"no":"K1752","from":"경산","gs":"14:57","dd":"15:09","dg":"15:14","wg":"15:36","gm":"16:01"},{"no":"K1754","from":"경산","gs":"15:10","dd":"15:22","dg":"15:27","wg":"15:49","gm":"16:09"},{"no":"K1756","from":"경산","gs":"15:42","dd":"15:54","dg":"15:59","wg":"16:21","gm":"16:46"},{"no":"K1758","from":"경산","gs":"16:12","dd":"16:24","dg":"16:29","wg":"16:51","gm":"17:11"},{"no":"K1760","from":"경산","gs":"16:33","dd":"16:45","dg":"16:50","wg":"17:12","gm":"17:37"},{"no":"K1762","from":"경산","gs":"16:58","dd":"17:10","dg":"17:15","wg":"17:37","gm":"17:57"},{"no":"K1764","from":"경산","gs":"17:06","dd":"17:18","dg":"17:23","wg":"17:45","gm":"18:10"},{"no":"K1766","from":"경산","gs":"17:36","dd":"17:48","dg":"17:53","wg":"18:15","gm":"18:35"},{"no":"K1768","from":"경산","gs":"17:57","dd":"18:09","dg":"18:14","wg":"18:36","gm":"19:01"},{"no":"K1770","from":"경산","gs":"18:23","dd":"18:35","dg":"18:40","wg":"19:02","gm":"19:27"},{"no":"K1772","from":"경산","gs":"18:47","dd":"18:59","dg":"19:04","wg":"19:26","gm":"19:46"},{"no":"K1774","from":"경산","gs":"19:13","dd":"19:25","dg":"19:30","wg":"19:52","gm":"20:12"},{"no":"K1776","from":"경산","gs":"19:45","dd":"19:57","dg":"20:02","wg":"20:24","gm":"20:44"},{"no":"K1778","from":"경산","gs":"20:06","dd":"20:18","dg":"20:23","wg":"20:45","gm":"21:05"},{"no":"K1780","from":"경산","gs":"20:31","dd":"20:43","dg":"20:48","wg":"21:10","gm":"21:30"},{"no":"K1782","from":"경산","gs":"20:51","dd":"21:03","dg":"21:08","wg":"21:30","gm":"21:50"},{"no":"K1784","from":"경산","gs":"21:14","dd":"21:26","dg":"21:31","wg":"21:53","gm":"22:13"},{"no":"K1786","from":"경산","gs":"21:44","dd":"21:56","dg":"22:01","wg":"22:23","gm":"22:43"},{"no":"K1788","from":"경산","gs":"22:10","dd":"22:22","dg":"22:27","wg":"22:49","gm":"23:09"},{"no":"K1790","from":"경산","gs":"22:37","dd":"22:49","dg":"22:54","wg":"23:16","gm":"23:36"},{"no":"K1792","from":"경산","gs":"22:55","dd":"23:07","dg":"23:12","wg":"23:34","gm":"23:54"},{"no":"K1794","from":"경산","gs":"23:19","dd":"23:31","dg":"23:36","wg":"23:58","gm":"00:18"},{"no":"K1796","from":"경산","gs":"23:38","dd":"23:50","dg":"23:55","wg":"00:17","gm":"00:37"}]},"dir2":{"weekday":[{"no":"K1705","to":"경산","gm":"05:30","wg":"05:49","dg":"06:12","dd":"06:17","gs":"06:29"},{"no":"K1707","to":"경산","gm":"05:40","wg":"05:59","dg":"06:22","dd":"06:27","gs":"06:39"},{"no":"K1709","to":"경산","gm":"06:04","wg":"06:23","dg":"06:46","dd":"06:51","gs":"07:04"},{"no":"K1711","to":"경산","gm":"06:27","wg":"06:46","dg":"07:09","dd":"07:14","gs":"07:26"},{"no":"K1713","to":"경산","gm":"06:50","wg":"07:09","dg":"07:32","dd":"07:37","gs":"07:49"},{"no":"K1715","to":"경산","gm":"07:02","wg":"07:21","dg":"07:44","dd":"07:49","gs":"08:01"},{"no":"K1717","to":"경산","gm":"07:21","wg":"07:40","dg":"08:03","dd":"08:08","gs":"08:20"},{"no":"K1719","to":"경산","gm":"07:30","wg":"07:49","dg":"08:12","dd":"08:17","gs":"08:29"},{"no":"K1721","to":"경산","gm":"07:50","wg":"08:09","dg":"08:32","dd":"08:37","gs":"08:49"},{"no":"K1723","to":"동대구","gm":"08:05","wg":"08:24","dg":"08:47","dd":"08:52","gs":null},{"no":"K1725","to":"경산","gm":"08:20","wg":"08:39","dg":"09:02","dd":"09:07","gs":"09:19"},{"no":"K1727","to":"경산","gm":"08:44","wg":"09:03","dg":"09:26","dd":"09:31","gs":"09:43"},{"no":"K1729","to":"경산","gm":"09:08","wg":"09:32","dg":"09:54","dd":"10:00","gs":"10:12"},{"no":"K1731","to":"동대구","gm":"09:22","wg":"09:46","dg":"10:08","dd":"10:14","gs":null},{"no":"K1733","to":"경산","gm":"09:40","wg":"09:59","dg":"10:22","dd":"10:27","gs":"10:39"},{"no":"K1735","to":"경산","gm":"10:00","wg":"10:24","dg":"10:46","dd":"10:52","gs":"11:04"},{"no":"K1737","to":"경산","gm":"10:25","wg":"10:44","dg":"11:07","dd":"11:12","gs":"11:24"},{"no":"K1739","to":"동대구","gm":"10:55","wg":"11:14","dg":"11:37","dd":"11:42","gs":null},{"no":"K1741","to":"경산","gm":"11:10","wg":"11:29","dg":"11:52","dd":"11:57","gs":"12:09"},{"no":"K1743","to":"경산","gm":"11:39","wg":"11:58","dg":"12:25","dd":"12:30","gs":"12:42"},{"no":"K1745","to":"경산","gm":"12:00","wg":"12:19","dg":"12:46","dd":"12:51","gs":"13:03"},{"no":"K1747","to":"경산","gm":"13:03","wg":"13:22","dg":"13:45","dd":"13:50","gs":"14:02"},{"no":"K1749","to":"경산","gm":"13:21","wg":"13:45","dg":"14:07","dd":"14:13","gs":"14:24"},{"no":"K1751","to":"경산","gm":"13:35","wg":"13:54","dg":"14:21","dd":"14:27","gs":"14:40"},{"no":"K1753","to":"경산","gm":"14:02","wg":"14:21","dg":"14:44","dd":"14:49","gs":"15:01"},{"no":"K1755","to":"경산","gm":"14:36","wg":"14:55","dg":"15:18","dd":"15:23","gs":"15:34"},{"no":"K1759","to":"경산","gm":"15:22","wg":"15:46","dg":"16:08","dd":"16:14","gs":"16:25"},{"no":"K1761","to":"경산","gm":"15:47","wg":"16:06","dg":"16:29","dd":"16:34","gs":"16:46"},{"no":"K1765","to":"경산","gm":"16:26","wg":"16:45","dg":"17:08","dd":"17:13","gs":"17:26"},{"no":"K1767","to":"경산","gm":"16:43","wg":"17:02","dg":"17:30","dd":"17:36","gs":"17:49"},{"no":"K1769","to":"경산","gm":"17:12","wg":"17:31","dg":"17:54","dd":"17:59","gs":"18:10"},{"no":"K1771","to":"경산","gm":"17:40","wg":"17:59","dg":"18:22","dd":"18:27","gs":"18:39"},{"no":"K1773","to":"경산","gm":"17:56","wg":"18:19","dg":"18:42","dd":"18:47","gs":"18:59"},{"no":"K1775","to":"동대구","gm":"18:17","wg":"18:36","dg":"18:59","dd":"19:04","gs":null},{"no":"K1777","to":"경산","gm":"18:30","wg":"18:49","dg":"19:17","dd":"19:23","gs":"19:35"},{"no":"K1779","to":"경산","gm":"18:52","wg":"19:11","dg":"19:34","dd":"19:39","gs":"19:51"},{"no":"K1781","to":"경산","gm":"19:20","wg":"19:39","dg":"20:02","dd":"20:07","gs":"20:19"},{"no":"K1783","to":"경산","gm":"19:46","wg":"20:05","dg":"20:28","dd":"20:33","gs":"20:46"},{"no":"K1785","to":"경산","gm":"20:07","wg":"20:26","dg":"20:49","dd":"20:54","gs":"21:06"},{"no":"K1787","to":"경산","gm":"20:35","wg":"20:54","dg":"21:17","dd":"21:22","gs":"21:34"},{"no":"K1789","to":"경산","gm":"20:56","wg":"21:15","dg":"21:38","dd":"21:44","gs":"21:56"},{"no":"K1791","to":"경산","gm":"21:21","wg":"21:40","dg":"22:03","dd":"22:08","gs":"22:23"},{"no":"K1793","to":"경산","gm":"21:51","wg":"22:10","dg":"22:33","dd":"22:38","gs":"22:50"},{"no":"K1795","to":"경산","gm":"22:08","wg":"22:27","dg":"22:56","dd":"23:01","gs":"23:13"},{"no":"K1797","to":"경산","gm":"22:33","wg":"22:52","dg":"23:15","dd":"23:20","gs":"23:32"},{"no":"K1799","to":"동대구","gm":"22:54","wg":"23:13","dg":"23:36","dd":"23:41","gs":null},{"no":"K1801","to":"경산","gm":"23:22","wg":"23:41","dg":"00:04","dd":"00:09","gs":"00:21"},{"no":"K1803","to":"동대구","gm":"23:50","wg":"00:09","dg":"00:32","dd":"00:37","gs":null}],"holiday":[{"no":"K1705","to":"경산","gm":"05:30","wg":"05:49","dg":"06:12","dd":"06:17","gs":"06:29"},{"no":"K1707","to":"경산","gm":"05:40","wg":"05:59","dg":"06:22","dd":"06:27","gs":"06:39"},{"no":"K1709","to":"경산","gm":"06:04","wg":"06:23","dg":"06:46","dd":"06:51","gs":"07:04"},{"no":"K1711","to":"경산","gm":"06:27","wg":"06:46","dg":"07:09","dd":"07:14","gs":"07:26"},{"no":"K1713","to":"경산","gm":"06:50","wg":"07:09","dg":"07:32","dd":"07:37","gs":"07:49"},{"no":"K1717","to":"경산","gm":"07:21","wg":"07:40","dg":"08:03","dd":"08:08","gs":"08:20"},{"no":"K1719","to":"경산","gm":"07:30","wg":"07:49","dg":"08:12","dd":"08:17","gs":"08:29"},{"no":"K1721","to":"경산","gm":"07:50","wg":"08:09","dg":"08:32","dd":"08:37","gs":"08:49"},{"no":"K1723","to":"동대구","gm":"08:05","wg":"08:24","dg":"08:47","dd":"08:52","gs":null},{"no":"K1725","to":"경산","gm":"08:20","wg":"08:39","dg":"09:02","dd":"09:07","gs":"09:19"},{"no":"K1727","to":"경산","gm":"08:44","wg":"09:03","dg":"09:26","dd":"09:31","gs":"09:43"},{"no":"K1729","to":"경산","gm":"09:08","wg":"09:32","dg":"09:54","dd":"10:00","gs":"10:12"},{"no":"K1733","to":"경산","gm":"09:40","wg":"09:59","dg":"10:22","dd":"10:27","gs":"10:39"},{"no":"K1735","to":"경산","gm":"10:00","wg":"10:24","dg":"10:46","dd":"10:52","gs":"11:04"},{"no":"K1737","to":"경산","gm":"10:25","wg":"10:44","dg":"11:07","dd":"11:12","gs":"11:24"},{"no":"K1739","to":"동대구","gm":"10:55","wg":"11:14","dg":"11:37","dd":"11:42","gs":null},{"no":"K1741","to":"경산","gm":"11:10","wg":"11:29","dg":"11:52","dd":"11:57","gs":"12:09"},{"no":"K1743","to":"경산","gm":"11:39","wg":"11:58","dg":"12:25","dd":"12:30","gs":"12:42"},{"no":"K1745","to":"경산","gm":"12:00","wg":"12:19","dg":"12:46","dd":"12:51","gs":"13:03"},{"no":"K1747","to":"경산","gm":"13:03","wg":"13:22","dg":"13:45","dd":"13:50","gs":"14:02"},{"no":"K1749","to":"경산","gm":"13:21","wg":"13:45","dg":"14:07","dd":"14:13","gs":"14:24"},{"no":"K1751","to":"경산","gm":"13:35","wg":"13:54","dg":"14:21","dd":"14:27","gs":"14:40"},{"no":"K1753","to":"경산","gm":"14:02","wg":"14:21","dg":"14:44","dd":"14:49","gs":"15:01"},{"no":"K1755","to":"경산","gm":"14:36","wg":"14:55","dg":"15:18","dd":"15:23","gs":"15:34"},{"no":"K1759","to":"경산","gm":"15:22","wg":"15:46","dg":"16:08","dd":"16:14","gs":"16:25"},{"no":"K1761","to":"경산","gm":"15:47","wg":"16:06","dg":"16:29","dd":"16:34","gs":"16:46"},{"no":"K1765","to":"경산","gm":"16:26","wg":"16:45","dg":"17:08","dd":"17:13","gs":"17:26"},{"no":"K1767","to":"경산","gm":"16:43","wg":"17:02","dg":"17:30","dd":"17:36","gs":"17:49"},{"no":"K1769","to":"경산","gm":"17:12","wg":"17:31","dg":"17:54","dd":"17:59","gs":"18:10"},{"no":"K1771","to":"경산","gm":"17:40","wg":"17:59","dg":"18:22","dd":"18:27","gs":"18:39"},{"no":"K1773","to":"경산","gm":"17:56","wg":"18:19","dg":"18:42","dd":"18:47","gs":"18:59"},{"no":"K1775","to":"동대구","gm":"18:17","wg":"18:36","dg":"18:59","dd":"19:04","gs":null},{"no":"K1777","to":"경산","gm":"18:30","wg":"18:49","dg":"19:17","dd":"19:23","gs":"19:35"},{"no":"K1779","to":"경산","gm":"18:52","wg":"19:11","dg":"19:34","dd":"19:39","gs":"19:51"},{"no":"K1781","to":"경산","gm":"19:20","wg":"19:39","dg":"20:02","dd":"20:07","gs":"20:19"},{"no":"K1783","to":"경산","gm":"19:46","wg":"20:05","dg":"20:28","dd":"20:33","gs":"20:46"},{"no":"K1785","to":"경산","gm":"20:07","wg":"20:26","dg":"20:49","dd":"20:54","gs":"21:06"},{"no":"K1787","to":"경산","gm":"20:35","wg":"20:54","dg":"21:17","dd":"21:22","gs":"21:34"},{"no":"K1789","to":"경산","gm":"20:56","wg":"21:15","dg":"21:38","dd":"21:44","gs":"21:56"},{"no":"K1791","to":"경산","gm":"21:21","wg":"21:40","dg":"22:03","dd":"22:08","gs":"22:23"},{"no":"K1793","to":"경산","gm":"21:51","wg":"22:10","dg":"22:33","dd":"22:38","gs":"22:50"},{"no":"K1795","to":"경산","gm":"22:08","wg":"22:27","dg":"22:56","dd":"23:01","gs":"23:13"},{"no":"K1797","to":"경산","gm":"22:33","wg":"22:52","dg":"23:15","dd":"23:20","gs":"23:32"},{"no":"K1799","to":"동대구","gm":"22:54","wg":"23:13","dg":"23:36","dd":"23:41","gs":null},{"no":"K1801","to":"경산","gm":"23:22","wg":"23:41","dg":"00:04","dd":"00:09","gs":"00:21"},{"no":"K1803","to":"동대구","gm":"23:50","wg":"00:09","dg":"00:32","dd":"00:37","gs":null}]}};
+
+let state = {
+  daytype: (new Date().getDay()===0 || new Date().getDay()===6) ? 'holiday' : 'weekday',
+  dir: '1'
+};
+
+function toMinutes(hhmm){
+  const [h,m] = hhmm.split(':').map(Number);
+  return h*60+m;
+}
+
+function nowMinutes(){
+  const d = new Date();
+  return d.getHours()*60 + d.getMinutes();
+}
+
+function renderClock(){
+  const d = new Date();
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mm = String(d.getMinutes()).padStart(2,'0');
+  document.getElementById('clockTime').textContent = hh+':'+mm;
+  const days = ['일','월','화','수','목','금','토'];
+  document.getElementById('clockDate').textContent =
+    (d.getMonth()+1)+'월 '+d.getDate()+'일 ('+days[d.getDay()]+')';
+}
+
+function renderSegments(){
+  document.querySelectorAll('#daytypeSeg button').forEach(b=>{
+    b.classList.toggle('active', b.dataset.v === state.daytype);
+  });
+  document.querySelectorAll('#dirtabs button').forEach(b=>{
+    b.classList.toggle('active', b.dataset.dir === state.dir);
+  });
+}
+
+// column order per direction: [key, header label, sub label]
+const COLS1 = [
+  ['gs','경산','출발'],
+  ['dd','동대구',''],
+  ['dg','대구',''],
+  ['wg','왜관',''],
+  ['gm','구미','도착']
+];
+const COLS2 = [
+  ['gm','구미','출발'],
+  ['wg','왜관',''],
+  ['dg','대구',''],
+  ['dd','동대구',''],
+  ['gs','경산','도착']
+];
+
+function refMinutes(r, dir){
+  // effective departure reference time for sorting/highlighting
+  if(dir === '1'){
+    return toMinutes(r.gs || r.dd);
+  } else {
+    return toMinutes(r.gm);
+  }
+}
+
+function render(){
+  renderSegments();
+  const rows = DATA['dir'+state.dir][state.daytype];
+  const list = document.getElementById('list');
+  const colhead = document.getElementById('colhead');
+  const now = nowMinutes();
+  const cols = state.dir === '1' ? COLS1 : COLS2;
+
+  colhead.innerHTML = '<div>열차</div>' + cols.map(c =>
+    `<div>${c[1]}${c[2] ? `<span class="sub">${c[2]}</span>` : ''}</div>`
+  ).join('');
+
+  let nextIdx = -1;
+  let nextRefMin = -1;
+
+  list.innerHTML = rows.map((r,i)=>{
+    let m = refMinutes(r, state.dir);
+    if(m < now - 720) m += 1440; // handle after-midnight trains
+    if(nextIdx===-1 && m >= now) { nextIdx = i; nextRefMin = m; }
+    return rowHtml(r, i, 'dir'+state.dir, cols);
+  }).join('');
+
+  // banner
+  const banner = document.getElementById('nextBanner');
+  const info = document.getElementById('nextInfo');
+  const eta = document.getElementById('nextEta');
+  banner.classList.remove('none','dir1','dir2');
+  if(nextIdx === -1){
+    banner.classList.add('none');
+    info.textContent = '오늘 남은 열차가 없어요';
+    eta.textContent = '–';
+  } else {
+    const r = rows[nextIdx];
+    banner.classList.add('dir'+state.dir);
+    if(state.dir==='1'){
+      info.innerHTML = r.no+' <span style="color:var(--text-dim);font-weight:600;">· '+(r.gs? r.from : r.from)+' 출발</span>';
+    } else {
+      info.innerHTML = r.no+' <span style="color:var(--text-dim);font-weight:600;">· '+r.to+' 행</span>';
+    }
+    let diff = nextRefMin - now;
+    eta.textContent = diff <= 0 ? '곧' : diff;
+  }
+
+  // scroll next row into view softly
+  const el = document.querySelector('.row.next');
+  if(el){
+    setTimeout(()=> el.scrollIntoView({block:'center', behavior:'smooth'}), 150);
+  }
+}
+
+function rowHtml(r, i, dirclass, cols){
+  let cls = 'row grid ' + dirclass;
+  const cells = cols.map(c => {
+    const v = r[c[0]];
+    const stn = c[1];
+    return v
+      ? `<div class="cell"><span class="t mono">${v}</span><span class="stn">${stn}</span></div>`
+      : `<div class="cell dash"><span class="t">–</span><span class="stn">${stn}</span></div>`;
+  }).join('');
+  return `<div class="${cls}" data-idx="${i}">
+    <div class="no mono">${r.no.replace('K','#')}</div>
+    ${cells}
+  </div>`;
+}
+
+// mark next/past rows after render, using minute compare (done separately for simplicity + accuracy)
+function markNextPast(){
+  const rows = DATA['dir'+state.dir][state.daytype];
+  const now = nowMinutes();
+  const nodeList = document.querySelectorAll('.row');
+  let foundNext = false;
+  nodeList.forEach((node, i)=>{
+    const r = rows[i];
+    let m = refMinutes(r, state.dir);
+    if(m < now - 720) m += 1440;
+    node.classList.remove('next','past');
+    if(!foundNext && m >= now){
+      node.classList.add('next');
+      foundNext = true;
+    } else if(m < now){
+      node.classList.add('past');
+    }
+  });
+}
+
+function fullRender(){
+  render();
+  markNextPast();
+}
+
+document.getElementById('daytypeSeg').addEventListener('click', e=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  state.daytype = btn.dataset.v;
+  fullRender();
+});
+document.getElementById('dirtabs').addEventListener('click', e=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  state.dir = btn.dataset.dir;
+  fullRender();
+});
+
+renderClock();
+fullRender();
+setInterval(()=>{ renderClock(); fullRender(); }, 30000);
+</script>
+</body>
+</html>
