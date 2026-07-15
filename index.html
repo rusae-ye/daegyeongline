@@ -178,7 +178,7 @@
     padding: 13px 15px;
     display:flex;
     align-items:center;
-    gap: 12px;
+    gap: 10px;
     border: 1px solid var(--line-strong);
     background: var(--panel);
   }
@@ -210,6 +210,111 @@
   .next-banner.dir2{ border-color: rgba(53,208,196,0.35); }
   .next-banner.dir2 .big, .next-banner.dir2 .eta .n{ color: var(--cyan); }
   .next-banner.none{ color: var(--text-faint); }
+
+  .next-content{ flex: 1; min-width: 0; }
+  .next-top{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .next-sub{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    margin-top: 9px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+  }
+  .next-sub .sub-chip{
+    font-size: 11px;
+    color: var(--text-dim);
+    font-weight: 600;
+  }
+  .next-sub .sub-chip b{
+    font-weight: 800;
+    margin-left: 2px;
+  }
+  .next-banner.dir1 .next-sub .sub-chip b{ color: var(--amber); }
+  .next-banner.dir2 .next-sub .sub-chip b{ color: var(--cyan); }
+  .next-sub:empty{ display: none; }
+
+  /* ---------------- STATION-BY-STATION DETAIL BANNER ---------------- */
+  .next-banner.upcoming{
+    margin-top: 8px;
+    opacity: 0.94;
+  }
+  .next-banner.upcoming .upcoming-content{
+    flex: 1;
+    min-width: 0;
+  }
+  .upcoming-head{
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+  .upcoming-head .lbl{ flex-shrink: 0; }
+  .upcoming-head .upcoming-no{
+    font-size: 12px;
+    font-weight: 800;
+  }
+  .next-banner.upcoming.dir1 .upcoming-no{ color: var(--amber); }
+  .next-banner.upcoming.dir2 .upcoming-no{ color: var(--cyan); }
+  .upcoming-grid{
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 2px;
+    margin-top: 7px;
+  }
+  .upcoming-grid .cell{
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .upcoming-grid .cell .t{
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .upcoming-grid .cell.dash .t{
+    color: var(--text-faint);
+    font-weight: 500;
+  }
+  .upcoming-grid .cell .stn{
+    font-size: 8px;
+    font-weight: 600;
+    color: var(--text-faint);
+    letter-spacing: 0.01em;
+  }
+  .nav-btn{
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    border: 1px solid var(--line-strong);
+    background: var(--panel-2);
+    color: var(--text-dim);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;
+    padding: 0;
+    transition: opacity .15s, background .15s, color .15s;
+  }
+  .nav-btn:disabled{
+    opacity: 0.28;
+    cursor: default;
+  }
+  .nav-btn:not(:disabled):active{
+    background: var(--line-strong);
+    color: var(--text);
+  }
 
   /* ---------------- LEGEND / COLUMN HEAD ---------------- */
   .grid{
@@ -351,13 +456,30 @@
   </header>
 
   <div class="next-banner none" id="nextBanner">
-    <div>
-      <div class="lbl">다음 열차</div>
-      <div class="big" id="nextInfo">불러오는 중…</div>
+    <button class="nav-btn" id="nextPrev" aria-label="이전 열차">‹</button>
+    <div class="next-content">
+      <div class="next-top">
+        <div>
+          <div class="lbl" id="nextLbl">다음 열차</div>
+          <div class="big" id="nextInfo">불러오는 중…</div>
+        </div>
+        <div class="eta">
+          <div class="n mono" id="nextEta">–</div>
+          <div class="u">분 후</div>
+        </div>
+      </div>
+      <div class="next-sub" id="nextSub"></div>
     </div>
-    <div class="eta">
-      <div class="n mono" id="nextEta">–</div>
-      <div class="u">분 후</div>
+    <button class="nav-btn" id="nextNext" aria-label="다음 열차">›</button>
+  </div>
+
+  <div class="next-banner upcoming none" id="upcomingBanner">
+    <div class="upcoming-content">
+      <div class="upcoming-head">
+        <span class="lbl">정차역 시간표</span>
+        <span class="upcoming-no mono" id="upcomingNo">–</span>
+      </div>
+      <div class="upcoming-grid" id="upcomingGrid"></div>
     </div>
   </div>
 
@@ -376,8 +498,12 @@ const DATA = {"dir1":{"weekday":[{"no":"K1702","from":"동대구","gs":null,"dd"
 
 let state = {
   daytype: (new Date().getDay()===0 || new Date().getDay()===6) ? 'holiday' : 'weekday',
-  dir: '1'
+  dir: '1',
+  selectedOffset: 0
 };
+
+let lastNextIdx = -1;
+let lastRows = [];
 
 function toMinutes(hhmm){
   const [h,m] = hhmm.split(':').map(Number);
@@ -446,35 +572,17 @@ function render(){
   ).join('');
 
   let nextIdx = -1;
-  let nextRefMin = -1;
 
   list.innerHTML = rows.map((r,i)=>{
     let m = refMinutes(r, state.dir);
     if(m < now - 720) m += 1440; // handle after-midnight trains
-    if(nextIdx===-1 && m >= now) { nextIdx = i; nextRefMin = m; }
+    if(nextIdx===-1 && m >= now) { nextIdx = i; }
     return rowHtml(r, i, 'dir'+state.dir, cols);
   }).join('');
 
-  // banner
-  const banner = document.getElementById('nextBanner');
-  const info = document.getElementById('nextInfo');
-  const eta = document.getElementById('nextEta');
-  banner.classList.remove('none','dir1','dir2');
-  if(nextIdx === -1){
-    banner.classList.add('none');
-    info.textContent = '오늘 남은 열차가 없어요';
-    eta.textContent = '–';
-  } else {
-    const r = rows[nextIdx];
-    banner.classList.add('dir'+state.dir);
-    if(state.dir==='1'){
-      info.innerHTML = r.no+' <span style="color:var(--text-dim);font-weight:600;">· '+(r.gs? r.from : r.from)+' 출발</span>';
-    } else {
-      info.innerHTML = r.no+' <span style="color:var(--text-dim);font-weight:600;">· '+r.to+' 행</span>';
-    }
-    let diff = nextRefMin - now;
-    eta.textContent = diff <= 0 ? '곧' : diff;
-  }
+  lastNextIdx = nextIdx;
+  lastRows = rows;
+  renderSelected();
 
   // scroll next row into view softly
   const el = document.querySelector('.row.next');
@@ -483,15 +591,110 @@ function render(){
   }
 }
 
-function rowHtml(r, i, dirclass, cols){
-  let cls = 'row grid ' + dirclass;
-  const cells = cols.map(c => {
+function formatEta(diff){
+  if(diff == null) return null;
+  return diff <= 0 ? '곧' : diff+'분 후';
+}
+
+function stationEtaText(r, key, now){
+  const val = r[key];
+  if(!val) return null;
+  let m = toMinutes(val);
+  if(m < now - 720) m += 1440;
+  return formatEta(m - now);
+}
+
+function renderSelected(){
+  const nextBanner = document.getElementById('nextBanner');
+  const nextLbl = document.getElementById('nextLbl');
+  const info = document.getElementById('nextInfo');
+  const eta = document.getElementById('nextEta');
+  const sub = document.getElementById('nextSub');
+  const prevBtn = document.getElementById('nextPrev');
+  const nextBtn = document.getElementById('nextNext');
+
+  const detailBanner = document.getElementById('upcomingBanner');
+  const noEl = document.getElementById('upcomingNo');
+  const grid = document.getElementById('upcomingGrid');
+
+  nextBanner.classList.remove('none','dir1','dir2');
+  detailBanner.classList.remove('none','dir1','dir2');
+
+  if(lastNextIdx === -1){
+    nextBanner.classList.add('none');
+    nextLbl.textContent = '다음 열차';
+    info.textContent = '오늘 남은 열차가 없어요';
+    eta.textContent = '–';
+    sub.innerHTML = '';
+    prevBtn.disabled = true;
+    nextBtn.disabled = true;
+
+    detailBanner.classList.add('none');
+    noEl.textContent = '–';
+    grid.innerHTML = '';
+    return;
+  }
+
+  const maxOffset = lastRows.length - 1 - lastNextIdx;
+  if(state.selectedOffset > maxOffset) state.selectedOffset = maxOffset;
+  if(state.selectedOffset < 0) state.selectedOffset = 0;
+
+  const targetIdx = lastNextIdx + state.selectedOffset;
+  const r = lastRows[targetIdx];
+  const now = nowMinutes();
+  const cols = state.dir === '1' ? COLS1 : COLS2;
+
+  // ---- banner 1: selected train summary + paging ----
+  nextBanner.classList.add('dir'+state.dir);
+  nextLbl.textContent = state.selectedOffset === 0 ? '다음 열차'
+    : state.selectedOffset === 1 ? '그 다음 열차'
+    : (state.selectedOffset+1)+'번째 다음 열차';
+
+  if(state.dir==='1'){
+    info.innerHTML = r.no+' <span style="color:var(--text-dim);font-weight:600;">· '+r.from+' 출발</span>';
+  } else {
+    info.innerHTML = r.no+' <span style="color:var(--text-dim);font-weight:600;">· '+r.to+' 행</span>';
+  }
+
+  let m = refMinutes(r, state.dir);
+  if(m < now - 720) m += 1440;
+  const diff = m - now;
+  eta.textContent = diff <= 0 ? '곧' : diff;
+
+  if(state.dir === '1'){
+    const dd = stationEtaText(r, 'dd', now);
+    const dg = stationEtaText(r, 'dg', now);
+    sub.innerHTML =
+      (dd ? `<span class="sub-chip">동대구 도착 <b>${dd}</b></span>` : '') +
+      (dg ? `<span class="sub-chip">대구 도착 <b>${dg}</b></span>` : '');
+  } else {
+    const wg = stationEtaText(r, 'wg', now);
+    sub.innerHTML = wg ? `<span class="sub-chip">왜관 도착 <b>${wg}</b></span>` : '';
+  }
+
+  prevBtn.disabled = state.selectedOffset <= 0;
+  nextBtn.disabled = targetIdx >= lastRows.length - 1;
+
+  // ---- banner 2: full station-by-station schedule for the same train ----
+  detailBanner.classList.add('dir'+state.dir);
+  noEl.textContent = r.no.replace('K','#');
+  grid.innerHTML = cellsHtml(r, cols);
+}
+
+
+function cellsHtml(r, cols){
+  return cols.map(c => {
     const v = r[c[0]];
     const stn = c[1];
     return v
       ? `<div class="cell"><span class="t mono">${v}</span><span class="stn">${stn}</span></div>`
       : `<div class="cell dash"><span class="t">–</span><span class="stn">${stn}</span></div>`;
   }).join('');
+}
+
+function rowHtml(r, i, dirclass, cols){
+  let cls = 'row grid ' + dirclass;
+  const cells = cellsHtml(r, cols);
   return `<div class="${cls}" data-idx="${i}">
     <div class="no mono">${r.no.replace('K','#')}</div>
     ${cells}
@@ -527,13 +730,25 @@ document.getElementById('daytypeSeg').addEventListener('click', e=>{
   const btn = e.target.closest('button');
   if(!btn) return;
   state.daytype = btn.dataset.v;
+  state.selectedOffset = 0;
   fullRender();
 });
 document.getElementById('dirtabs').addEventListener('click', e=>{
   const btn = e.target.closest('button');
   if(!btn) return;
   state.dir = btn.dataset.dir;
+  state.selectedOffset = 0;
   fullRender();
+});
+document.getElementById('nextPrev').addEventListener('click', ()=>{
+  if(state.selectedOffset > 0){
+    state.selectedOffset--;
+    renderSelected();
+  }
+});
+document.getElementById('nextNext').addEventListener('click', ()=>{
+  state.selectedOffset++;
+  renderSelected();
 });
 
 renderClock();
